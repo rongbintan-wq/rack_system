@@ -2,7 +2,12 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
+import io
+from urllib.parse import quote
+
+from openpyxl import Workbook
 
 from app.database import get_db
 from app import crud
@@ -53,6 +58,45 @@ def create_device(payload: DeviceCreate, db: Session = Depends(get_db), user=Dep
 def mount_device(payload: DeviceMountReq, db: Session = Depends(get_db), user=Depends(require_user)):
     """点击空闲U位的上架入口。"""
     return create_device(DeviceCreate(**payload.model_dump()), db=db, user=user)
+
+
+EXPORT_HEADERS = [
+    "资源ID", "资源编号", "设备类型", "品牌名称", "型号", "区域省份城市场地",
+    "机房名称", "机柜名称", "机柜编号", "起始U位", "占用U位数", "资产状态",
+    "SN序列号", "主机名",
+]
+
+
+@router.get("/export")
+def export_devices(db: Session = Depends(get_db)):
+    """一次性导出所有未删除设备为 Excel（与导入模板列对齐，便于回导）。"""
+    devs = (
+        db.query(Device)
+        .filter(Device.is_deleted.is_(False))
+        .order_by(Device.room_name, Device.rack_code, Device.start_u)
+        .all()
+    )
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "设备"
+    ws.append(EXPORT_HEADERS)
+    for d in devs:
+        ws.append([
+            d.resource_id, d.resource_code, d.device_type, d.brand_name, d.model, d.region,
+            d.room_name, d.rack_name, d.rack_code, d.start_u, d.height_u, d.asset_status,
+            d.sn, d.hostname,
+        ])
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    fname = "设备导出.xlsx"
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": f"attachment; filename=devices_export.xlsx; filename*=UTF-8''{quote(fname)}"
+        },
+    )
 
 
 @router.get("/{device_id}", response_model=Resp)

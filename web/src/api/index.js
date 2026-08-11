@@ -8,6 +8,7 @@ const http = axios.create({
 
 http.interceptors.response.use(
   (resp) => {
+    if (resp.config.responseType === 'blob') return resp.data
     const body = resp.data
     if (body && typeof body.code !== 'undefined' && body.code !== 0) {
       return Promise.reject(new Error(body.msg || '请求失败'))
@@ -63,6 +64,9 @@ export const api = {
     fd.append('file', file)
     return http.post('/import/commit', fd)
   },
+
+  // export
+  exportDevices: () => http.get('/devices/export', { responseType: 'blob' }),
 
   // files
   templateUrl: '/api/files/template',
