@@ -177,9 +177,27 @@
 
 ## 九、Git 版本管理与发布规范
 
-- **手动确认铁律**：所有 git 写操作（commit / tag / push / merge / reset / branch -d / 远端删除等）**必须等待用户明确确认后方可执行**。
+- **手动确认铁律**：所有 git 写操作（commit / tag / push / merge / reset / branch -d / 远端删除 / 创建 PR / 合并 PR 等）**必须等待用户明确确认后方可执行**。
   - 执行前：先列出将要运行的完整 git 命令及影响范围（目标分支、远端、tag），向用户说明并请求确认。
   - 用户未明确回复"确认/执行/可以"等肯定指令前，禁止自动运行任何 git 写操作。
   - 仅 `git status` / `git log` / `git diff` 等只读命令可不经确认直接执行。
-- 版本备份流程：`git init` → 本地 commit（带 CHANGELOG 说明）→ `git tag vX.Y.Z` → 推送到远端 `master` 与 `main`。
-- 推送远端前同样须逐条确认：推送分支、tag 名称、远端地址。
+
+### 分支模型
+- **`main` 是 GitHub 上唯一的远程根分支**（无 `master` 分支），所有发布以 `main` 为准，GitHub 默认页即展示 `main`。
+- 开发从 `main` 切出短生命周期分支（命名如 `feat/xxx`、`fix/xxx`），完成经 PR 合回 `main`，合后删除源分支。
+- 本地若存在历史残留的 `master` 分支仅作参考，不再推送或并入 `main`。
+
+### PR 标准流程（合入 main）
+1. 提 PR 前自检（只读，不改动）：
+   `git fetch origin`
+   `git log --oneline origin/main..<branch>` —— 确认将带入 `main` 的提交清单；
+   `git diff --stat origin/main...<branch>` —— 确认改动文件范围。
+2. GitHub 新建 PR：`base = main`，`compare = <branch>`，标题与描述须含变更要点（如「统一下架占用口径、新增重上架面板、冲突提示统一、AGENTS 4.4/4.5」）。
+3. 无冲突则合并，合并方式**优先 Squash and merge**（多提交压成单个干净提交）；或 Create a merge commit（保留分支链）。
+4. 合并后于 PR 页 **Delete branch** 删除远端源分支；本地清理 `git branch -d <branch>`（若远端已删可 `git fetch --prune`）。
+5. 若 PR 提示冲突：本地 `git checkout main && git pull origin main && git merge <branch>` 解决后 `git push origin main`，或在网页 Resolve conflicts。
+
+### 版本备份与发布
+- 本地开发：`git init`（已初始化则跳过）→ 本地 commit（消息含 CHANGELOG 说明，遵循「手动确认铁律」）。
+- 发布标签：`git tag -a vX.Y.Z -m "..."` → `git push origin vX.Y.Z`（仅推 `main` 及其 tag）。
+- 推送 / 打 tag 前同样须逐条确认：目标分支、tag 名称、远端地址。
