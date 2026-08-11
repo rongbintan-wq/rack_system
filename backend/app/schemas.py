@@ -209,43 +209,6 @@ class DeviceMountReq(BaseModel):
     hostname: str = ""
 
 
-# ----------------------------- Port / Connection -----------------------------
-class PortCreate(BaseModel):
-    device_id: int
-    port_name: str
-    port_type: str = "电口"
-    speed: str = "1G"
-    status: str = "未接"
-
-
-class PortOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-    id: int
-    device_id: int
-    port_name: str
-    port_type: str
-    speed: str
-    status: str
-
-
-class ConnectionCreate(BaseModel):
-    port_a_id: int
-    port_b_id: int
-    cable_type: str = "网线-Cat6"
-    length_m: float = 0
-    notes: str = ""
-
-
-class ConnectionOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-    id: int
-    port_a_id: int
-    port_b_id: int
-    cable_type: str
-    length_m: float
-    notes: str
-
-
 # ----------------------------- Import -----------------------------
 class ImportRowError(BaseModel):
     row: int

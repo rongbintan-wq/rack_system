@@ -12,11 +12,11 @@ from fastapi.staticfiles import StaticFiles
 from app.config import BASE_DIR, settings
 from app.database import Base, SessionLocal, engine
 from app.models import User
-from app.routers import auth, devices, import_, ports, racks, rooms
+from app.routers import auth, devices, import_, racks, rooms
 from app.schemas import Resp
 from app.security import hash_password
 
-app = FastAPI(title=settings.APP_NAME, version="1.0.0")
+app = FastAPI(title=settings.APP_NAME, version="1.1.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -26,7 +26,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-for r in (rooms.router, racks.router, devices.router, ports.router, import_.router, auth.router):
+for r in (rooms.router, racks.router, devices.router, import_.router, auth.router):
     app.include_router(r)
 
 

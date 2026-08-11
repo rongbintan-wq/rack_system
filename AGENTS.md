@@ -9,7 +9,7 @@
 ## 一、项目背景与目标
 
 内部使用的**机柜管理系统**，核心目标：
-1. 替代 Excel，管理「机房 → 机柜 → 设备 → 端口 → 线缆」五级资源。
+1. 替代 Excel，管理「机房 → 机柜 → 设备」三级资源（端口/线缆不在本期范围）。
 2. 核心可视化：根据导入的设备数据，自动渲染机柜平面图（SVG），一眼看清 U 位占用。
 3. 支持新增机房、新增机柜、批量导入设备（Excel）。
 
@@ -28,9 +28,6 @@
   brand_name, model, region, site_detail, room_name, rack_name, rack_code(FK),
   start_u(从下往上), height_u(默认1), asset_status(运行中/已下架/维修中/报废), sn, hostname,
   created_at, updated_at, is_deleted
-- **Port（端口）**：id, device_id(FK), port_name, port_type(电口/光口/管理口/Console),
-  speed(10M/100M/1G/10G/25G/40G/100G), status(up/down/预留/未接)
-- **Connection（线缆）**：id, port_a_id(FK), port_b_id(FK), cable_type, length_m, notes
 - **ImportLog（导入记录）**：id, filename, import_time, total_rows, success_count, failed_count, status, error_detail(JSON)
 
 **全局约束**：
@@ -96,7 +93,7 @@
 ## 六、初始任务流程
 
 1. 讨论阶段：复述 SVG 坐标公式、冲突检测算法、三级路由结构，等待确认。
-2. 开发阶段：骨架 → ORM/CRUD → 机房 → 机柜 → 导入 API → 导入对话框 → SVG 视图 → 设备抽屉 → 端口线缆。
+2. 开发阶段：骨架 → ORM/CRUD → 机房 → 机柜 → 导入 API → 导入对话框 → SVG 视图 → 设备抽屉。
 3. 提交阶段：README + CHANGELOG + 静态检查（后端 ruff/pytest，前端 oxlint/vue-tsc）+ 推送。
 
 ---

@@ -20,7 +20,7 @@
 
 我是一名网络工程师，正在构建一个内部使用的**机柜管理系统**。
 **核心目标**：
-1. 替代 Excel，管理「**机房 → 机柜 → 设备 → 端口 → 线缆**」五级资源。
+1. 替代 Excel，管理「**机房 → 机柜 → 设备**」三级资源（端口/线缆不在本期范围）。
 2. **核心可视化**：根据导入的设备数据，自动渲染机柜平面图（SVG），一眼看清 U 位占用。
 3. 支持**新增机房、新增机柜、批量导入设备（Excel）**。
 
@@ -62,18 +62,7 @@
   sn（序列号，可选）, hostname（主机名，可选）,
   created_at, updated_at, is_deleted（软删标志，默认 False）
 
-### 2.4 Port（端口）
-- id, device_id（FK）, port_name（如 GigE1/0/1）,
-  port_type（电口/光口/管理口/Console）,
-  speed（10M/100M/1G/10G/25G/40G/100G）,
-  status（up/down/预留/未接）
-
-### 2.5 Connection（线缆连接）
-- id, port_a_id（FK → Port）, port_b_id（FK → Port）,
-  cable_type（光纤-LC/光纤-MPO/网线-Cat6/网线-Cat6A/铜缆-DAC）,
-  length_m（米）, notes
-
-### 2.6 ImportLog（导入记录）
+### 2.4 ImportLog（导入记录）
 - id, filename, import_time, total_rows, success_count,
   failed_count, status, error_detail（JSON 格式，存储每行错误原因）
 
@@ -245,7 +234,7 @@
 ```
 code ≠ 0 表示错误，msg 为错误描述。
 
-**审计日志**：关键操作（新增机房/机柜、导入设备、上架/下架、删线缆）记录 operator_id、操作时间、变更内容（前后值对比），存入 `audit_log` 表。
+**审计日志**：关键操作（新增机房/机柜、导入设备、上架/下架）记录 operator_id、操作时间、变更内容（前后值对比），存入 `audit_log` 表。
 
 **Excel 解析**：强制使用 openpyxl，禁止 xlrd（不支持新 .xlsx 格式）。
 
@@ -260,10 +249,8 @@ code ≠ 0 表示错误，msg 为错误描述。
 - `<RackView />`：核心 SVG 机柜视图（40-80 行，聚焦渲染逻辑）
 - `<UUnit />`：单个 U 位矩形（空闲/预留/冲突态）
 - `<DeviceBlock />`：设备块（颜色 + Tooltip + 点击交互）
-- `<DeviceDrawer />`：设备详情右侧抽屉（编辑/下架/端口 Tab）
+- `<DeviceDrawer />`：设备详情右侧抽屉（编辑/下架）
 - `<ImportDialog />`：Excel 导入对话框（上传 + 预览 + 结果反馈）
-- `<PortList />`：端口列表 Tab
-- `<ConnectionForm />`：线缆连接表单
 
 **状态管理**：Pinia 管理 `roomsStore` / `racksStore` / `devicesStore` 三个 store。
 **路由**：`/rooms`（列表）→ `/rooms/:id`（机房详情）→ `/racks/:id`（机柜详情 + SVG）。
@@ -287,7 +274,6 @@ AI 复述以下三点，等待我 OK：
 - Step 6：前端导入对话框（上传 + Dry-Run 预览 + 确认提交 + 结果反馈）
 - Step 7：核心 SVG 机柜视图（`<RackView />` + `<DeviceBlock />` + 颜色编码）
 - Step 8：设备详情抽屉 + 上架/下架交互
-- Step 9：端口与线缆基础管理
 
 **阶段三：提交**
 - 生成 README（部署步骤 + Excel 模板下载说明 + 用户操作手册）
@@ -371,7 +357,7 @@ AI 复述以下三点，等待我 OK：
 | AGENTS.md 集中规则 | 本提示语即 AGENTS.md 正文（仓库根目录，AI 自动读取） |
 | 三阶段流程规则文件 | 本 AGENTS.md 三阶段流程（讨论→开发→提交，每步需确认） |
 | Storybook 组件化 | 全部 Vue 组件配 .story 文件 |
-| TDD 取舍（后端 pytest + 前端 Playwright） | Step 9 后跑全量测试，覆盖率目标 ≥ 70% |
+| TDD 取舍（后端 pytest + 前端 Playwright） | 开发完成后跑全量测试，覆盖率目标 ≥ 70% |
 | 省 Token 六策略 | 见 7.5 节 |
 | 统一研发环境 | 本地研发环境 `scripts/setup.sh` 7 步自动化 |
 | 页面评论提需求 + 能力地图 | 机房/机柜管理界面 + 操作手册 |

@@ -51,14 +51,6 @@ export const api = {
   updateDevice: (id, data) => http.put(`/devices/${id}`, data),
   decommissionDevice: (id) => http.post(`/devices/${id}/decommission`),
   deleteDevice: (id) => http.delete(`/devices/${id}`),
-  devicePorts: (id) => http.get(`/devices/${id}/ports`),
-
-  // ports / connections
-  createPort: (data) => http.post('/ports', data),
-  deletePort: (id) => http.delete(`/ports/${id}`),
-  listConnections: () => http.get('/connections'),
-  createConnection: (data) => http.post('/connections', data),
-  deleteConnection: (id) => http.delete(`/connections/${id}`),
 
   // import
   importPreview: (file) => {
