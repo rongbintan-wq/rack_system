@@ -113,37 +113,8 @@ class Device(Base, TimestampMixin):
     hostname: Mapped[str] = mapped_column(String(128), default="")
 
     rack: Mapped["Rack"] = relationship(back_populates="devices")
-    ports: Mapped[list["Port"]] = relationship(back_populates="device")
 
 
-# ----------------------------------------------------------------------------
-# Port（端口）
-# ----------------------------------------------------------------------------
-class Port(Base, TimestampMixin):
-    __tablename__ = "ports"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    device_id: Mapped[int] = mapped_column(ForeignKey("devices.id"), nullable=False, index=True)
-    port_name: Mapped[str] = mapped_column(String(64), nullable=False)  # 如 GigE1/0/1
-    port_type: Mapped[str] = mapped_column(String(32), default="电口")  # 电口/光口/管理口/Console
-    speed: Mapped[str] = mapped_column(String(16), default="1G")  # 10M/100M/1G/10G/25G/40G/100G
-    status: Mapped[str] = mapped_column(String(16), default="未接")  # up/down/预留/未接
-
-    device: Mapped["Device"] = relationship(back_populates="ports")
-
-
-# ----------------------------------------------------------------------------
-# Connection（线缆连接）
-# ----------------------------------------------------------------------------
-class Connection(Base, TimestampMixin):
-    __tablename__ = "connections"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    port_a_id: Mapped[int] = mapped_column(ForeignKey("ports.id"), nullable=False, index=True)
-    port_b_id: Mapped[int] = mapped_column(ForeignKey("ports.id"), nullable=False, index=True)
-    cable_type: Mapped[str] = mapped_column(String(32), default="网线-Cat6")  # 光纤-LC/光纤-MPO/网线-Cat6/网线-Cat6A/铜缆-DAC
-    length_m: Mapped[float] = mapped_column(Integer, default=0)
-    notes: Mapped[str] = mapped_column(Text, default="")
 
 
 # ----------------------------------------------------------------------------

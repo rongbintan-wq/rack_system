@@ -4,7 +4,7 @@
 
 ### 新增（Phase 1：机房/机柜 CRUD + Excel 导入 + SVG 视图）
 - 后端 FastAPI + SQLAlchemy + SQLite 全栈骨架（monorepo：backend/ + web/）。
-- 数据模型：Room / Rack / Device / Port / Connection / ImportLog / AuditLog / User，全局软删 + DATETIME 时间戳。
+- 数据模型：Room / Rack / Device / ImportLog / AuditLog / User，全局软删 + DATETIME 时间戳。
 - 机房、机柜、设备 CRUD API，统一返回 `{ code, data, msg }`，RBAC + JWT 鉴权（DEV 可关闭）。
 - Excel 批量导入：`openpyxl` 解析 + 机柜归属校验 + U 越界校验 + **U 位冲突检测（含排除自身 UPDATE）** + 增量更新（幂等）+ 事务回滚。
 - 核心 SVG 机柜视图坐标公式（含 +1 off-by-one 修正）与按设备类型颜色编码，前端 RackView 渲染。
@@ -27,3 +27,16 @@
 - 提交前检查：后端 `pytest`（4 passed）、前端 `npm run build` 通过、无敏感文件入库。
 - 恢复方式：`git checkout v1.0.0`；初始化运行 `setup.bat`（Windows）或 `bash scripts/setup.sh`（Linux/macOS）。
 - 说明：AGENTS.md 提交阶段含"推送"，本机未配置 remote，故仅做**本地版本备份**；需推送时执行 `git remote add origin <url>` 后 `git push --tags`。
+
+## [1.1.0] - 2026-08-11
+
+### 变更（资源模型收敛为三级）
+- 按需求将管理范围从「机房→机柜→设备→端口→线缆」五级收敛为**三级**（机房→机柜→设备），端口/线缆移出本期范围（保留为 Phase 2+ 路线）。
+- **后端清理**：删除 `Port` / `Connection` 数据模型；删除 `routers/ports.py`（含端口与线缆接口）；`crud.py` / `schemas.py` 移除对应增删查封装；`main.py` 取消 `ports.router` 挂载。
+- **前端清理**：`web/src/api/index.js` 移除 `devicePorts` / `createPort` / `deletePort` / `listConnections` / `createConnection` / `deleteConnection` 等指向已删端点的死代码。
+- **文档同步**：`机柜管理系统_AI开发提示语.md` 与 `AGENTS.md` 更新背景目标（三级资源）、数据模型（删 Port/Connection）、前端组件清单（去 PortList/ConnectionForm）、开发流程（删 Step 9 端口线缆）、审计日志示例（去"删线缆"）。
+- **兼容性**：其余功能（机房/机柜/设备 CRUD、Excel 导入冲突检测、SVG 视图、JWT 鉴权、软删、审计）均不受影响；`pytest` 4 项冲突算法测试保持通过。
+
+### 版本备份（Git）
+- 标签：**`v1.1.0`**（基于 `v1.0.0`，仅含端口/线缆收敛，2026-08-11）。
+- 恢复方式：`git checkout v1.1.0`；初始化运行 `setup.bat`（Windows）或 `bash scripts/setup.sh`（Linux/macOS）。

@@ -15,10 +15,8 @@ from sqlalchemy.orm import Session
 
 from app.models import (
     AuditLog,
-    Connection,
     Device,
     ImportLog,
-    Port,
     Rack,
     Room,
     User,
@@ -238,42 +236,6 @@ def decommission_device(db: Session, dev: Device, operator: Optional[User] = Non
     dev.asset_status = "已下架"
     log_audit(db, operator, "decommission", "device", dev.id, json.dumps({"before": {"asset_status": before}, "after": {"asset_status": "已下架"}}, ensure_ascii=False))
     return dev
-
-
-# ----------------------------- Port -----------------------------
-def list_ports(db: Session, device_id: int):
-    return db.query(Port).filter(Port.device_id == device_id, Port.is_deleted.is_(False)).order_by(Port.id).all()
-
-
-def create_port(db: Session, data: dict, operator: Optional[User] = None) -> Port:
-    p = Port(**data)
-    db.add(p)
-    db.flush()
-    log_audit(db, operator, "create", "port", p.id, json.dumps(data, ensure_ascii=False))
-    return p
-
-
-def soft_delete_port(db: Session, p: Port, operator: Optional[User] = None) -> None:
-    p.is_deleted = True
-    log_audit(db, operator, "delete", "port", p.id, f"软删端口 {p.port_name}")
-
-
-# ----------------------------- Connection -----------------------------
-def list_connections(db: Session):
-    return db.query(Connection).filter(Connection.is_deleted.is_(False)).order_by(Connection.id).all()
-
-
-def create_connection(db: Session, data: dict, operator: Optional[User] = None) -> Connection:
-    c = Connection(**data)
-    db.add(c)
-    db.flush()
-    log_audit(db, operator, "create", "connection", c.id, json.dumps(data, ensure_ascii=False))
-    return c
-
-
-def soft_delete_connection(db: Session, c: Connection, operator: Optional[User] = None) -> None:
-    c.is_deleted = True
-    log_audit(db, operator, "delete", "connection", c.id, "软删线缆")
 
 
 # ----------------------------- ImportLog -----------------------------
