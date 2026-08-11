@@ -1,6 +1,6 @@
 # 企业级智能机柜管理系统（DCIM-Lite）
 
-替代 Excel 的「机房 → 机柜 → 设备 → 端口 → 线缆」五级资源管理，核心能力是 **Excel 批量导入 + SVG 机柜平面图自动渲染（一眼看清 U 位占用）**。
+替代 Excel 的「**机房 → 机柜 → 设备**」三级资源管理，核心能力是 **Excel 批量导入/导出 + SVG 机柜平面图自动渲染（一眼看清 U 位占用）**。
 
 技术栈：**FastAPI + SQLAlchemy + SQLite（初期）** / **Vue 3 + Vite + Element Plus + Pinia**。
 
@@ -54,33 +54,59 @@ npm run dev                                         # http://127.0.0.1:5173
 
 ---
 
-## 二、Excel 导入
+## 二、功能概览
 
-1. 在机柜详情页点击「📥 导入设备」，或前端任意「下载模板」入口。
-2. 下载 `设备导入模板.xlsx`，按固定列（A-N）填写：
-   资源ID / 资源编号 / 设备类型 / 品牌名称 / 型号 / 区域省份城市场地 / 机房名称 /
-   机柜名称 / 机柜编号 / 起始U位 / 占用U位数 / 资产状态 / SN序列号 / 主机名
+| 功能 | 说明 |
+|---|---|
+| **机房管理** | 两级视图：机房列表 → 机房详情（内联机柜矩阵），无独立机柜详情菜单 |
+| **SVG 机柜图** | 每个 U 位精确渲染，设备色块显示「品牌+型号」，颜色按类型编码 |
+| **设备操作** | 点击设备 → 抽屉查看/编辑；点击空闲 U → 上架；下架后释放 U 位 |
+| **Excel 导入** | 入口在机房列表与机房详情页（共用同一导入弹窗），支持幂等增量 |
+| **Excel 导出** | 一键导出全部设备为 xlsx（与导入模板列对齐，便于回导校验） |
+| **已下架设备** | 机房详情页可折叠面板，支持重新上架（命中占用则告警） |
+
+---
+
+## 三、Excel 导入/导出
+
+### 导入
+1. 在**机房列表页**或**机房详情页**点击「📥 导入设备」。
+2. 下载 `设备导入模板.xlsx`，按固定列（A-O，共 14 列）填写：
+   资源ID / 资源编号 / 设备类型 / 品牌名称 / 型号 / 区域省份城市场地 /
+   **机房编号/名称** / 机柜名称 / 机柜编号 / 起始U位 / 占用U位数 /
+   资产状态 / SN序列号（可选）/ 主机名
 3. 选择文件 → 「预览校验」→ 系统 Dry-Run 校验（机柜存在性、U 越界、U 位冲突），
    绿色区显示「将新增 N / 将更新 M」，红色区列出错误行。
 4. 无错误时「确认导入」→ 事务写入；任意一行失败则**整批回滚**。
 5. 重复导入同一文件幂等（按资源编号 UPDATE，不重复创建）。
 
+> **占用判定口径**：U 位冲突检测排除 `is_deleted=True` 与 `asset_status='已下架'` 的设备，
+> 即已下架设备不参与冲突判定，其原 U 位可被新设备正常占用。
+
 下载地址：`GET /api/files/template`（模板）、`GET /api/files/sample`（示例 10 行）。
+
+### 导出
+- 在**机房列表页**点击「📤 导出全部设备」→ 浏览器自动下载 xlsx。
+- 后端端点：`GET /api/devices/export`（StreamingResponse，全量同步生成）。
+- 导出列与导入模板对齐（14 列），便于编辑后回导。
 
 ---
 
-## 三、核心算法（已用 pytest 覆盖）
+## 四、核心算法（已用 pytest 覆盖）
 
 1. **SVG 坐标公式**（U1 在底部，Y 轴向下，含 +1 off-by-one 修正）：
    - `设备块顶边 Y = 10 + (height_u - start_u - height_u_dev + 1) × 22`
    - `设备块高度 = 设备占用U数 × 22`
    - 示例：42U 机柜中 start_u=10、height_u=2 → Y=692、高度=44（已验证一致）。
 2. **U 位冲突检测**：区间交集 `max(start_a, start_b) <= min(end_a, end_b)`；
-   仅比对 `is_deleted=False` 设备；**同资源编号本次将原地 UPDATE 的旧记录须排除**（否则自冲突导致整批回滚）。
+   仅比对 `is_deleted=False AND asset_status!='已下架'` 的设备；
+   **同资源编号本次将原地 UPDATE 的旧记录须排除**（否则自冲突导致整批回滚）。
+3. **下架语义**：下架 ≠ 软删——仅置 `asset_status='已下架'`，保留 `is_deleted=False` 与 U 位信息，
+   以便复用原位置重新上架；重新上架时目标 U 被占用则返回「位置已占用告警」。
 
 ---
 
-## 四、项目结构
+## 五、项目结构
 
 ```
 rack_system/
@@ -90,22 +116,22 @@ rack_system/
 │   │   ├── main.py           # 应用入口 / 路由注册 / SPA 托管 / 异常归一化
 │   │   ├── config.py         # 环境配置（.env.local）
 │   │   ├── database.py       # 引擎 / 会话 / Base
-│   │   ├── models.py         # ORM 模型（软删 + 审计）
+│   │   ├── models.py         # ORM 模型（软删 + 审计）：Room / Rack / Device
 │   │   ├── schemas.py        # Pydantic 模型
 │   │   ├── security.py       # JWT + RBAC
-│   │   ├── crud.py           # 增删改唯一入口（软删 + 审计）
+│   │   ├── crud.py           # 增删改唯一入口（软删 + 审计 + 占用口径统一）
 │   │   ├── importer.py       # Excel 解析 + 冲突检测 + 事务
 │   │   ├── excel_template.py # 模板 / 示例生成
 │   │   ├── utils/svg.py      # SVG 坐标 + 颜色
-│   │   └── routers/          # rooms/racks/devices/ports/import/auth
+│   │   └── routers/          # rooms / racks / devices / import_ / auth
 │   ├── init_db.py            # 建表 + 预置示例数据
 │   ├── tests/                # pytest（冲突算法）
 │   └── data/                 # SQLite + 模板/示例 xlsx
 ├── web/                      # Vue 3 + Vite
 │   └── src/
 │       ├── api/  stores/  router/  utils/svg.js
-│       ├── components/       # RackView / DeviceDrawer / ImportDialog / RackGrid / RoomCard / RoomTree / DeviceTypeChart
-│       └── views/           # RoomsView / RoomDetailView / RackDetailView
+│       ├── components/       # RackView / RackGrid / DeviceDrawer / ImportDialog / RoomCard / DeviceTypeChart
+│       └── views/           # RoomsView / RoomDetailView / RackDetailView(深链)
 ├── setup.bat / start.bat / stop.bat   # Windows 原生启动脚本（CMD 直接运行）
 ├── scripts/setup.sh / start.sh        # Linux/macOS 用（需运行时在 PATH）
 └── AGENTS.md / README.md / CHANGELOG.md
@@ -113,23 +139,25 @@ rack_system/
 
 ---
 
-## 五、工程规范
+## 六、工程规范
 
 - 所有删除为**软删**（`is_deleted=True`），禁止物理 DELETE。
 - 统一返回 `{ code, data, msg }`，`code≠0` 为错误。
 - 关键操作写 `audit_log`（操作人 / 时间 / 前后值对比）。
 - 批量导入必须 Dry-Run 预检，事务原子写入。
 - 删除 / 下架前端二次确认。
+- **占用判定唯一口径**：`is_deleted=False AND asset_status!='已下架'`（渲染/冲突/统计四者一致）。
+- 改后端代码后必须重启 uvicorn（旧进程持旧路由表）；静态路由须声明在 `/{id}` 参数路由之前。
 
 ---
 
-## 六、后续路线（Phase 2+）
+## 七、后续路线（Phase 2+）
 
-端口管理 + 线缆连接拓扑 → SNMP 自动发现 → 容量规划报表 → 对接 CMDB/网管 API → 巡检/下架审批 Agent。
+SNMP 自动发现 → 容量规划报表 → 对接 CMDB/网管 API → 巡检/下架审批 Agent → 多租户。
 
 ---
 
-## 七、常见问题（排错）
+## 八、常见问题（排错）
 
 ### 1. 浏览器打开只显示标题、页面全白（白屏）
 **现象**：`http://127.0.0.1:8000/rooms` 标题栏有文字，但 `<div id="app">` 内容为空。
@@ -162,3 +190,7 @@ Windows 命令提示符（CMD）没有 `bash`。请用根目录的 **Windows 原
 ### 6. 访问提示端口被占用
 说明后端已在运行，直接开 `http://127.0.0.1:8000` 即可；如需重启先 `stop.bat` 释放 8000 端口再 `start.bat`。
 
+### 7. 设备导出报 422
+**原因**：运行的 uvicorn 进程是改前启动的旧版本，没有 `/export` 端点，
+请求 `/api/devices/export` 被 `/{device_id}` 路由误匹配为 `device_id="export"`（int 解析失败）。
+**修复**：`stop.bat` 停止旧进程 → `start.bat` 重启即可加载新路由表。
