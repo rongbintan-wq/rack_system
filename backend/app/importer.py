@@ -7,7 +7,8 @@ M SN序列号 | N 主机名
 
 冲突检测核心（修正 off-by-one 与排除自身 UPDATE）：
     区间交集：max(start_a, start_b) <= min(end_a, end_b)
-    - 仅比对 is_deleted=False 的设备
+    - 占用判定唯一口径：仅比对 is_deleted=False 且 asset_status != '已下架' 的设备
+      （已下架设备释放其 U 位，不计入占用、不阻塞新上架）
     - 同 batch 内「资源编号」将原地 UPDATE 的旧记录须从比对集合排除
     - 同时检测 batch 内多行之间的相互重叠
 """
@@ -150,7 +151,11 @@ def validate_rows(db: Session, raw_rows: list[RawRow]):
         if rc not in rack_workset:
             # DB 中该机柜的已占用区间，排除本批将 UPDATE 的旧记录
             db_intervals = []
-            for d in db.query(Device).filter(Device.rack_code == rc, Device.is_deleted.is_(False)):
+            for d in db.query(Device).filter(
+                Device.rack_code == rc,
+                Device.is_deleted.is_(False),
+                Device.asset_status != "已下架",
+            ):
                 if d.resource_code in batch_codes:
                     continue  # 自身旧记录排除
                 db_intervals.append((d.start_u, d.start_u + d.height_u - 1, d.resource_code))
@@ -171,7 +176,7 @@ def validate_rows(db: Session, raw_rows: list[RawRow]):
 
         if conflict_with:
             s, e, code = conflict_with
-            errors.append({"row": rr.row, "resource_code": rc, "reason": f"第 {rr.row} 行：U 位 {start_u}-{end_u} 与资源编号 {code}（U {s}-{e}）冲突"})
+            errors.append({"row": rr.row, "resource_code": rc, "reason": f"第 {rr.row} 行：位置已占用告警，U 位 {start_u}-{end_u} 与资源编号 {code}（U {s}-{e}）冲突"})
             continue
 
         # 判定 insert / update

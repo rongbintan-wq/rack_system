@@ -2,7 +2,12 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
+import io
+from urllib.parse import quote
+
+from openpyxl import Workbook
 
 from app.database import get_db
 from app import crud
@@ -42,7 +47,7 @@ def create_device(payload: DeviceCreate, db: Session = Depends(get_db), user=Dep
     # 冲突
     conflict = _conflict(db, rack.rack_code, payload.start_u, payload.height_u, exclude_id=None)
     if conflict:
-        raise HTTPException(status_code=400, detail=f"U 位冲突：与资源编号 {conflict} ")
+        raise HTTPException(status_code=400, detail=f"位置已占用告警：与资源编号 {conflict} 冲突，请先下架占用设备")
     dev = crud.create_device(db, payload.model_dump(), operator=user)
     db.commit()
     db.refresh(dev)
@@ -53,6 +58,45 @@ def create_device(payload: DeviceCreate, db: Session = Depends(get_db), user=Dep
 def mount_device(payload: DeviceMountReq, db: Session = Depends(get_db), user=Depends(require_user)):
     """点击空闲U位的上架入口。"""
     return create_device(DeviceCreate(**payload.model_dump()), db=db, user=user)
+
+
+EXPORT_HEADERS = [
+    "资源ID", "资源编号", "设备类型", "品牌名称", "型号", "区域省份城市场地",
+    "机房名称", "机柜名称", "机柜编号", "起始U位", "占用U位数", "资产状态",
+    "SN序列号", "主机名",
+]
+
+
+@router.get("/export")
+def export_devices(db: Session = Depends(get_db)):
+    """一次性导出所有未删除设备为 Excel（与导入模板列对齐，便于回导）。"""
+    devs = (
+        db.query(Device)
+        .filter(Device.is_deleted.is_(False))
+        .order_by(Device.room_name, Device.rack_code, Device.start_u)
+        .all()
+    )
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "设备"
+    ws.append(EXPORT_HEADERS)
+    for d in devs:
+        ws.append([
+            d.resource_id, d.resource_code, d.device_type, d.brand_name, d.model, d.region,
+            d.room_name, d.rack_name, d.rack_code, d.start_u, d.height_u, d.asset_status,
+            d.sn, d.hostname,
+        ])
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    fname = "设备导出.xlsx"
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": f"attachment; filename=devices_export.xlsx; filename*=UTF-8''{quote(fname)}"
+        },
+    )
 
 
 @router.get("/{device_id}", response_model=Resp)
@@ -79,7 +123,7 @@ def update_device(device_id: int, payload: DeviceUpdate, db: Session = Depends(g
         raise HTTPException(status_code=400, detail="U 位越界")
     conflict = _conflict(db, new_rack_code, new_start, new_height, exclude_id=dev.id)
     if conflict:
-        raise HTTPException(status_code=400, detail=f"U 位冲突：与资源编号 {conflict}")
+        raise HTTPException(status_code=400, detail=f"位置已占用告警：与资源编号 {conflict} 冲突，请先下架占用设备")
     crud.update_device(db, dev, data, operator=user)
     db.commit()
     return Resp(data=DeviceOut.model_validate(dev).model_dump(), msg="设备更新成功")
@@ -107,7 +151,13 @@ def delete_device(device_id: int, db: Session = Depends(get_db), user=Depends(re
 
 def _conflict(db: Session, rack_code: str, start_u: int, height_u: int, exclude_id: int | None) -> str | None:
     end_u = start_u + height_u - 1
-    for d in db.query(Device).filter(Device.rack_code == rack_code, Device.is_deleted.is_(False)):
+    # 占用判定唯一口径：排除已软删 + 已下架设备，二者均不占用 U 位
+    q = db.query(Device).filter(
+        Device.rack_code == rack_code,
+        Device.is_deleted.is_(False),
+        Device.asset_status != "已下架",
+    )
+    for d in q:
         if exclude_id and d.id == exclude_id:
             continue
         if max(start_u, d.start_u) <= min(end_u, d.start_u + d.height_u - 1):

@@ -99,7 +99,11 @@ def room_stats(db: Session, room: Room) -> dict:
     occupied = 0
     device_count = 0
     for r in racks:
-        devs = db.query(Device).filter(Device.rack_code == r.rack_code, Device.is_deleted.is_(False)).all()
+        devs = db.query(Device).filter(
+            Device.rack_code == r.rack_code,
+            Device.is_deleted.is_(False),
+            Device.asset_status != "已下架",
+        ).all()
         device_count += len(devs)
         if devs:
             occupied += 1
@@ -153,8 +157,12 @@ def soft_delete_rack(db: Session, rack: Rack, operator: Optional[User] = None) -
 
 
 def rack_used_u(db: Session, rack_code: str, exclude_id: int = None) -> int:
-    """计算机柜已占用 U 数（按 U 位区间并集，去重）。"""
-    q = db.query(Device).filter(Device.rack_code == rack_code, Device.is_deleted.is_(False))
+    """计算机柜已占用 U 数（按 U 位区间并集，去重）。仅统计占用中设备（排除已下架）。"""
+    q = db.query(Device).filter(
+        Device.rack_code == rack_code,
+        Device.is_deleted.is_(False),
+        Device.asset_status != "已下架",
+    )
     if exclude_id:
         q = q.filter(Device.id != exclude_id)
     devs = q.all()
@@ -177,7 +185,11 @@ def rack_stats(db: Session, rack: Rack) -> dict:
     used = rack_used_u(db, rack.rack_code)
     cnt = (
         db.query(func.count(Device.id))
-        .filter(Device.rack_code == rack.rack_code, Device.is_deleted.is_(False))
+        .filter(
+            Device.rack_code == rack.rack_code,
+            Device.is_deleted.is_(False),
+            Device.asset_status != "已下架",
+        )
         .scalar()
         or 0
     )
@@ -198,7 +210,20 @@ def get_device_by_resource_code(db: Session, resource_code: str) -> Optional[Dev
     )
 
 
-def list_devices(db: Session, rack_code: str = None, rack_id: int = None):
+def list_devices(
+    db: Session,
+    rack_code: str = None,
+    rack_id: int = None,
+    room_id: int = None,
+    asset_status: str = None,
+    active_only: bool = True,
+):
+    """设备列表。
+
+    占用判定唯一口径：设备占用 U 位 ⇔ is_deleted=False AND asset_status != '已下架'。
+    - active_only=True（默认）：仅返回占用中设备（排除已下架），用于机柜图渲染/列表。
+    - asset_status 显式传入时（如 '已下架'）：按该状态过滤，并绕过 active_only。
+    """
     q = db.query(Device).filter(Device.is_deleted.is_(False))
     if rack_code:
         q = q.filter(Device.rack_code == rack_code)
@@ -206,6 +231,14 @@ def list_devices(db: Session, rack_code: str = None, rack_id: int = None):
         rack = get_rack(db, rack_id)
         if rack:
             q = q.filter(Device.rack_code == rack.rack_code)
+    if room_id:
+        q = q.join(Rack, Device.rack_code == Rack.rack_code).filter(
+            Rack.room_id == room_id, Rack.is_deleted.is_(False)
+        )
+    if asset_status:
+        q = q.filter(Device.asset_status == asset_status)
+    elif active_only:
+        q = q.filter(Device.asset_status != "已下架")
     return q.order_by(Device.start_u).all()
 
 

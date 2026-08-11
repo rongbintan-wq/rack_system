@@ -40,3 +40,24 @@
 ### 版本备份（Git）
 - 标签：**`v1.1.0`**（基于 `v1.0.0`，仅含端口/线缆收敛，2026-08-11）。
 - 恢复方式：`git checkout v1.1.0`；初始化运行 `setup.bat`（Windows）或 `bash scripts/setup.sh`（Linux/macOS）。
+
+## [1.2.0] - 2026-08-11
+
+### 修复（下架占用逻辑 + 导出 422）
+- **统一"占用"口径**：设备占用 U 位 ⇔ `is_deleted=False AND asset_status != '已下架'`。
+  此前下架仅置 `asset_status='已下架'` 但判定仍按 `is_deleted`，导致两处 bug：
+  1. 下架设备仍显示在机柜图（渲染未排除已下架）；
+  2. 下架后其 U 位仍被判定"已占用"，新设备无法上架。
+  该口径统一应用到 `crud.list_devices` / `_conflict` / `rack_used_u` / `rack_stats` / `room_stats` / `importer` 工作集。
+- **重新上架闭环**：机房详情页新增「已下架设备」可折叠面板，每项「重新上架」按钮调用更新接口复用原 U 位；
+  若目标 U 位被在用设备占用 → 返回 **「位置已占用告警」** 并禁止上架，待占用设备下架释放后方可重上架。
+- **冲突提示语统一**为「位置已占用告警」（create / update / import 三处一致）。
+- **导出 422 根因修复**：导出端点 `GET /api/devices/export` 此前未加载到运行进程，
+  请求被 `/{device_id}` 误匹配为 `device_id="export"`（int 解析失败）→ 422；
+  重启 uvicorn 后新路由表生效（/export 已声明在 /{device_id} 之前），导出返回 200 + xlsx。
+- **AGENTS.md 提示语**：新增 4.4 下架语义与占用判定、4.5 路由顺序与重启铁律；三 冲突检测说明同步更新。
+
+### 验证
+- 后端 TestClient 端到端：下架→机柜图不再显示、新设备同 U 上架成功、旧设备重上架报「位置已占用告警」、占用设备下架后旧设备重上架成功、DB 还原。
+- 导出端点：`GET /api/devices/export` → 200，Content-Type 正确，导出含全部非删除设备。
+- 前端 `npm run build` 通过；服务进程已重启至 :8000 加载新代码。

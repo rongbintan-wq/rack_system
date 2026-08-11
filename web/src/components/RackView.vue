@@ -38,6 +38,13 @@ function blockY(startU, h) {
   return deviceBlockY(heightU.value, startU, h)
 }
 
+// 设备块标签：品牌 + 型号（超长截断加省略号）
+function devLabel(d) {
+  const base = `${d.brand_name || ''} ${d.model || ''}`.trim() || d.resource_code || ''
+  const max = props.compact ? 9 : 18
+  return base.length > max ? base.slice(0, max - 1) + '…' : base
+}
+
 // 自定义 Tooltip
 const tip = ref({ show: false, x: 0, y: 0, dev: null })
 function onEnterDev(e, dev) {
@@ -81,7 +88,7 @@ function onLeaveDev() {
           v-if="!compact || d.height_u >= 2"
           :x="mainX + mainW / 2" :y="blockY(d.start_u, d.height_u) + d.height_u * U_HEIGHT / 2 + 4"
           text-anchor="middle" class="dev-text"
-        >{{ compact ? d.device_type : (d.model || d.resource_code) }}</text>
+        >{{ devLabel(d) }}</text>
       </g>
     </svg>
 

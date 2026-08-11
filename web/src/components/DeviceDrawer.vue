@@ -3,7 +3,11 @@ import { ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { api } from '@/api'
 
-const props = defineProps({ device: { type: Object, default: null } })
+const props = defineProps({
+  device: { type: Object, default: null },
+  rackCode: { type: String, default: '' },
+  startU: { type: Number, default: null },
+})
 const visible = defineModel('visible', { default: false })
 const emit = defineEmits(['changed'])
 
@@ -12,29 +16,60 @@ const form = ref({})
 const saving = ref(false)
 
 watch(
-  () => props.device,
-  (d) => {
+  () => [props.device, props.rackCode, props.startU],
+  () => {
     editing.value = false
-    if (d) form.value = { ...d }
-  }
+    if (props.device) {
+      form.value = { ...props.device }
+    } else if (props.rackCode) {
+      // 上架（创建）模式：预填机柜与起始 U 位，直接进入编辑表单
+      form.value = {
+        resource_id: '', resource_code: '', device_type: '交换机', brand_name: '', model: '',
+        rack_code: props.rackCode, start_u: props.startU || 1, height_u: 1, asset_status: '运行中', sn: '', hostname: '',
+      }
+      editing.value = true
+    } else {
+      form.value = {}
+    }
+  },
+  { immediate: true }
 )
 
 async function save() {
+  if (!form.value.resource_code) return ElMessage.warning('请填写资源编号')
   saving.value = true
   try {
-    await api.updateDevice(form.value.id, {
-      device_type: form.value.device_type,
-      brand_name: form.value.brand_name,
-      model: form.value.model,
-      rack_code: form.value.rack_code,
-      start_u: form.value.start_u,
-      height_u: form.value.height_u,
-      asset_status: form.value.asset_status,
-      sn: form.value.sn,
-      hostname: form.value.hostname,
-    })
-    ElMessage.success('已保存')
-    editing.value = false
+    if (form.value.id) {
+      await api.updateDevice(form.value.id, {
+        device_type: form.value.device_type,
+        brand_name: form.value.brand_name,
+        model: form.value.model,
+        rack_code: form.value.rack_code,
+        start_u: form.value.start_u,
+        height_u: form.value.height_u,
+        asset_status: form.value.asset_status,
+        sn: form.value.sn,
+        hostname: form.value.hostname,
+      })
+      ElMessage.success('已保存')
+      editing.value = false
+    } else {
+      await api.createDevice({
+        resource_id: form.value.resource_id || '',
+        resource_code: form.value.resource_code,
+        device_type: form.value.device_type,
+        brand_name: form.value.brand_name,
+        model: form.value.model,
+        rack_code: form.value.rack_code,
+        start_u: form.value.start_u,
+        height_u: form.value.height_u,
+        asset_status: form.value.asset_status,
+        sn: form.value.sn,
+        hostname: form.value.hostname,
+      })
+      ElMessage.success('已上架')
+      visible.value = false
+    }
     emit('changed')
   } catch (e) {
     ElMessage.error(e.message)
@@ -60,7 +95,7 @@ async function remove() {
 </script>
 
 <template>
-  <el-drawer v-model="visible" :title="device ? device.resource_code : ''" size="420px">
+  <el-drawer v-model="visible" :title="device ? device.resource_code : '上架设备'" size="420px">
     <template v-if="device">
       <el-descriptions v-if="!editing" :column="1" border>
         <el-descriptions-item label="资源ID">{{ device.resource_id }}</el-descriptions-item>

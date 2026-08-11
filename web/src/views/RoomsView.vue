@@ -6,12 +6,14 @@ import { api } from '@/api'
 import { useRoomsStore } from '@/stores/rooms'
 import RoomTree from '@/components/RoomTree.vue'
 import RoomCard from '@/components/RoomCard.vue'
+import ImportDialog from '@/components/ImportDialog.vue'
 
 const router = useRouter()
 const store = useRoomsStore()
 const viewMode = ref('table')
 const filters = ref({ region: '', city: '', status: '' })
 const treeActive = ref(null)
+const importVisible = ref(false)
 
 const dialog = ref(false)
 const saving = ref(false)
@@ -56,6 +58,21 @@ async function delRoom(row) {
   await store.removeRoom(row.id)
   ElMessage.success('已删除')
 }
+
+async function exportDevices() {
+  try {
+    const blob = await api.exportDevices()
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = '设备导出.xlsx'
+    a.click()
+    URL.revokeObjectURL(url)
+    ElMessage.success('导出成功')
+  } catch (e) {
+    ElMessage.error(e.message)
+  }
+}
 </script>
 
 <template>
@@ -82,6 +99,8 @@ async function delRoom(row) {
             <el-radio-button label="table">表格</el-radio-button>
             <el-radio-button label="card">卡片</el-radio-button>
           </el-radio-group>
+          <el-button @click="importVisible = true">📥 导入设备</el-button>
+          <el-button @click="exportDevices">⬇️ 导出全部设备</el-button>
           <el-button type="primary" @click="dialog = true">+ 新增机房</el-button>
         </div>
 
@@ -137,6 +156,8 @@ async function delRoom(row) {
         <el-button type="primary" :loading="saving" @click="submitRoom">创建</el-button>
       </template>
     </el-dialog>
+
+    <ImportDialog v-model:visible="importVisible" @imported="load" />
   </div>
 </template>
 

@@ -4,7 +4,7 @@ import { api } from '@/api'
 import RackView from './RackView.vue'
 
 const props = defineProps({ racks: { type: Array, default: () => [] } })
-const emit = defineEmits(['open-rack'])
+const emit = defineEmits(['open-rack', 'select-device', 'mount-u'])
 const layouts = ref({})
 
 watch(
@@ -37,6 +37,8 @@ watch(
         :rack="{ height_u: layouts[r.id]?.height_u || r.height_u, rack_name: r.rack_name, rack_code: r.rack_code }"
         :devices="layouts[r.id]?.devices || []"
         compact
+        @select-device="emit('select-device', $event)"
+        @mount-u="emit('mount-u', { rackCode: r.rack_code, startU: $event })"
       />
       <div class="rack-sub">已用 {{ r.used_u }}/{{ r.height_u }}U · {{ r.device_count }} 台</div>
     </div>
