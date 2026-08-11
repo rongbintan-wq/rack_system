@@ -1,0 +1,19 @@
+# 环境与密钥
+backend/.env.local
+.env.local
+.venv/
+__pycache__/
+*.pyc
+logs/*.log
+
+# 运行时数据（SQLite / 临时导入产物）
+backend/data/*.db
+backend/data/conflict.xlsx
+
+# 前端
+web/node_modules/
+web/dist/
+node_modules/
+
+# 工具内部目录（非项目交付物）
+.workbuddy/
