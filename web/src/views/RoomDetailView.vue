@@ -20,6 +20,11 @@ const rackDialog = ref(false)
 const saving = ref(false)
 const rackForm = ref({ rack_name: '', rack_code: '', height_u: 42, power_type: '双路市电', status: '空闲', location_note: '', notes: '' })
 
+// 已下架设备面板
+const decoVisible = ref(true)
+const decoList = ref([])
+const remountingId = ref(null)
+
 // 设备详情抽屉 / 导入
 const drawerVisible = ref(false)
 const selectedDevice = ref(null)
@@ -35,8 +40,23 @@ async function load() {
     room.value = await api.getRoom(id)
     racks.value = await api.roomRacks(id)
     dtypes.value = await api.roomDeviceTypes(id)
+    decoList.value = await api.listDevices({ asset_status: '已下架', room_id: id })
   } finally {
     loading.value = false
+  }
+}
+
+async function remount(d) {
+  remountingId.value = d.id
+  try {
+    await api.updateDevice(d.id, { asset_status: '运行中' })
+    ElMessage.success(`「${d.resource_code}」已重新上架`)
+    await load()
+  } catch (e) {
+    // 目标 U 位仍被占用时后端返回「位置已占用告警」
+    ElMessage.error(e.message)
+  } finally {
+    remountingId.value = null
   }
 }
 
@@ -101,6 +121,36 @@ async function submitRack() {
     </div>
     <RackGrid :racks="racks" @select-device="onSelectDevice" @mount-u="onMountU" />
 
+    <div class="section-head">
+      <h3>已下架设备（{{ decoList.length }}）</h3>
+      <el-button v-if="decoList.length" size="small" text @click="decoVisible = !decoVisible">
+        {{ decoVisible ? '收起' : '展开' }}
+      </el-button>
+    </div>
+    <el-card v-if="decoList.length && decoVisible" shadow="never" class="deco">
+      <el-table :data="decoList" size="small" border>
+        <el-table-column prop="resource_code" label="资源编号" />
+        <el-table-column prop="device_type" label="类型" />
+        <el-table-column prop="brand_name" label="品牌" />
+        <el-table-column prop="model" label="型号" />
+        <el-table-column prop="rack_code" label="机柜" />
+        <el-table-column label="原U位">
+          <template #default="{ row }">U{{ row.start_u }}-{{ row.start_u + row.height_u - 1 }}</template>
+        </el-table-column>
+        <el-table-column label="操作" width="110">
+          <template #default="{ row }">
+            <el-button
+              size="small" type="warning"
+              :loading="remountingId === row.id"
+              @click="remount(row)"
+            >重新上架</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+      <div class="deco-tip">重新上架将复用原 U 位；若该 U 位已被在用设备占用，会提示「位置已占用告警」，需先下架占用设备。</div>
+    </el-card>
+    <el-alert v-else-if="!decoList.length" type="success" :closable="false" title="当前机房无已下架设备" />
+
     <div class="section-head"><h3>设备类型分布</h3></div>
     <el-card shadow="never"><DeviceTypeChart :data="dtypes" /></el-card>
 
@@ -135,4 +185,6 @@ async function submitRack() {
 .info { margin: 12px 0; }
 .section-head { display: flex; align-items: center; justify-content: space-between; margin: 18px 0 10px; }
 .section-head h3 { margin: 0; }
+.deco { margin-bottom: 6px; }
+.deco-tip { margin-top: 8px; color: #909399; font-size: 12px; }
 </style>

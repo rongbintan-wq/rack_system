@@ -47,7 +47,7 @@ def create_device(payload: DeviceCreate, db: Session = Depends(get_db), user=Dep
     # 冲突
     conflict = _conflict(db, rack.rack_code, payload.start_u, payload.height_u, exclude_id=None)
     if conflict:
-        raise HTTPException(status_code=400, detail=f"U 位冲突：与资源编号 {conflict} ")
+        raise HTTPException(status_code=400, detail=f"位置已占用告警：与资源编号 {conflict} 冲突，请先下架占用设备")
     dev = crud.create_device(db, payload.model_dump(), operator=user)
     db.commit()
     db.refresh(dev)
@@ -123,7 +123,7 @@ def update_device(device_id: int, payload: DeviceUpdate, db: Session = Depends(g
         raise HTTPException(status_code=400, detail="U 位越界")
     conflict = _conflict(db, new_rack_code, new_start, new_height, exclude_id=dev.id)
     if conflict:
-        raise HTTPException(status_code=400, detail=f"U 位冲突：与资源编号 {conflict}")
+        raise HTTPException(status_code=400, detail=f"位置已占用告警：与资源编号 {conflict} 冲突，请先下架占用设备")
     crud.update_device(db, dev, data, operator=user)
     db.commit()
     return Resp(data=DeviceOut.model_validate(dev).model_dump(), msg="设备更新成功")
@@ -151,7 +151,13 @@ def delete_device(device_id: int, db: Session = Depends(get_db), user=Depends(re
 
 def _conflict(db: Session, rack_code: str, start_u: int, height_u: int, exclude_id: int | None) -> str | None:
     end_u = start_u + height_u - 1
-    for d in db.query(Device).filter(Device.rack_code == rack_code, Device.is_deleted.is_(False)):
+    # 占用判定唯一口径：排除已软删 + 已下架设备，二者均不占用 U 位
+    q = db.query(Device).filter(
+        Device.rack_code == rack_code,
+        Device.is_deleted.is_(False),
+        Device.asset_status != "已下架",
+    )
+    for d in q:
         if exclude_id and d.id == exclude_id:
             continue
         if max(start_u, d.start_u) <= min(end_u, d.start_u + d.height_u - 1):
