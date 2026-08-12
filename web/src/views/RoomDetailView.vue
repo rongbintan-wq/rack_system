@@ -31,6 +31,12 @@ const selectedDevice = ref(null)
 const mountDraft = ref(null)
 const importVisible = ref(false)
 
+// 机柜编辑弹窗
+const editRackDialog = ref(false)
+const editingRack = ref(null)
+const editSaving = ref(false)
+const editForm = ref({ rack_name: '', height_u: 42, power_type: '双路市电', status: '空闲', location_note: '', notes: '' })
+
 onMounted(load)
 
 async function load() {
@@ -81,6 +87,34 @@ async function onImported() {
   await load()
 }
 
+function onEditRack(r) {
+  editingRack.value = r
+  editForm.value = {
+    rack_name: r.rack_name,
+    height_u: r.height_u,
+    power_type: r.power_type,
+    status: r.status,
+    location_note: r.location_note || '',
+    notes: r.notes || '',
+  }
+  editRackDialog.value = true
+}
+
+async function submitEditRack() {
+  if (!editForm.value.rack_name) return ElMessage.warning('请填写机柜名称')
+  editSaving.value = true
+  try {
+    await api.updateRack(editingRack.value.id, { ...editForm.value })
+    ElMessage.success('机柜信息已更新')
+    editRackDialog.value = false
+    await load()
+  } catch (e) {
+    ElMessage.error(e.message)
+  } finally {
+    editSaving.value = false
+  }
+}
+
 async function submitRack() {
   if (!rackForm.value.rack_name || !rackForm.value.rack_code) return ElMessage.warning('请填写机柜名称与编号')
   saving.value = true
@@ -119,7 +153,7 @@ async function submitRack() {
       <el-button @click="importVisible = true">📥 导入设备</el-button>
       <el-button type="primary" size="small" @click="rackDialog = true">+ 新增机柜</el-button>
     </div>
-    <RackGrid :racks="racks" @select-device="onSelectDevice" @mount-u="onMountU" />
+    <RackGrid :racks="racks" @select-device="onSelectDevice" @mount-u="onMountU" @edit-rack="onEditRack" />
 
     <div class="section-head">
       <h3>已下架设备（{{ decoList.length }}）</h3>
@@ -171,6 +205,32 @@ async function submitRack() {
     </el-dialog>
 
     <ImportDialog v-model:visible="importVisible" @imported="onImported" />
+
+    <el-dialog v-model="editRackDialog" title="编辑机柜" width="460px">
+      <el-form :model="editForm" label-width="90px">
+        <el-form-item label="机柜编号"><el-input :model-value="editingRack?.rack_code" disabled /></el-form-item>
+        <el-form-item label="机柜名称*" required><el-input v-model="editForm.rack_name" placeholder="如 A01" /></el-form-item>
+        <el-form-item label="总U数">
+          <el-select v-model="editForm.height_u"><el-option :value="42" /><el-option :value="45" /><el-option :value="47" /><el-option :value="48" /></el-select>
+        </el-form-item>
+        <el-form-item label="电源类型"><el-input v-model="editForm.power_type" /></el-form-item>
+        <el-form-item label="状态">
+          <el-select v-model="editForm.status">
+            <el-option label="空闲" value="空闲" />
+            <el-option label="部分占用" value="部分占用" />
+            <el-option label="已满" value="已满" />
+            <el-option label="预留" value="预留" />
+            <el-option label="故障" value="故障" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="位置备注"><el-input v-model="editForm.location_note" /></el-form-item>
+        <el-form-item label="备注"><el-input v-model="editForm.notes" type="textarea" /></el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="editRackDialog = false">取消</el-button>
+        <el-button type="primary" :loading="editSaving" @click="submitEditRack">保存</el-button>
+      </template>
+    </el-dialog>
     <DeviceDrawer
       v-model:visible="drawerVisible"
       :device="selectedDevice"
