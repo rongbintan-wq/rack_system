@@ -9,6 +9,7 @@ logs/*.log
 # 运行时数据（SQLite / 临时导入产物）
 backend/data/*.db
 backend/data/conflict.xlsx
+backend/uvicorn.log
 
 # 前端
 web/node_modules/

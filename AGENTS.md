@@ -162,7 +162,7 @@
 
 1. 讨论阶段：复述 SVG 坐标公式、冲突检测算法、两级视图结构，等待确认。
 2. 开发阶段：骨架 → ORM/CRUD → 机房 → 机柜 → 导入 API → 导入对话框 → SVG 视图 → 设备抽屉 → 导出 API。
-3. 提交阶段：README + CHANGELOG + 静态检查（后端 ruff/pytest，前端 oxlint/vue-tsc）+ 推送。
+3. 提交阶段：README + CHANGELOG + 静态检查（后端 ruff/pytest，前端 oxlint/vue-tsc）+ **版本号一致性校验（`python scripts/check_version.py`）** + 推送。
 
 ---
 
@@ -201,3 +201,18 @@
 - 本地开发：`git init`（已初始化则跳过）→ 本地 commit（消息含 CHANGELOG 说明，遵循「手动确认铁律」）。
 - 发布标签：`git tag -a vX.Y.Z -m "..."` → `git push origin vX.Y.Z`（仅推 `main` 及其 tag）。
 - 推送 / 打 tag 前同样须逐条确认：目标分支、tag 名称、远端地址。
+
+### 版本号一致性铁律
+- **权威来源**：项目版本号以 `CHANGELOG.md` 最新条目（如 `[1.2.0]`）为唯一权威值。
+- **版本载体文件（必须保持一致，禁止漂移）**：
+  1. `backend/app/main.py` → `FastAPI(version="X.Y.Z")`（用于 OpenAPI 文档展示）
+  2. `web/package.json` → `"version": "X.Y.Z"`
+  3. 四份项目手册（`运维操作手册.md` / `开发手册.md` / `测试手册.md` / `能力地图.md`）及 `README.md` 中的版本标注
+- **提交前强制检查**：每次代码提交 / 建 PR 前，须运行版本一致性校验：
+  ```bash
+  python scripts/check_version.py
+  ```
+  脚本以 `CHANGELOG.md` 为准，比对 `main.py` / `package.json` 的版本号；不一致则报错退出（exit 1），须先统一再提交。
+- **同步规则**：若本次提交修改了任一版本载体文件（如发版升级版本号），必须同步更新其余所有载体，确保彼此一致且不落后于 `CHANGELOG.md` 最新值；若未触碰版本字段则保持现状，不强行升级。
+- **版本升级时机**：仅在完成一次功能 / 缺陷发布、并补写 `CHANGELOG.md` 对应条目后，才整体将载体升至新版本号；日常功能提交不得零散改动版本号。
+- 周一自动核对任务负责手册与配置同步，但**代码提交仍需本地运行 `check_version.py` 校验**，不可依赖定时任务替代提交前检查。

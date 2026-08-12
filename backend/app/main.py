@@ -16,7 +16,7 @@ from app.routers import auth, devices, import_, racks, rooms
 from app.schemas import Resp
 from app.security import hash_password
 
-app = FastAPI(title=settings.APP_NAME, version="1.2.0")
+app = FastAPI(title=settings.APP_NAME, version="1.3.0")
 
 app.add_middleware(
     CORSMiddleware,
