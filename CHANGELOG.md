@@ -61,3 +61,14 @@
 - 后端 TestClient 端到端：下架→机柜图不再显示、新设备同 U 上架成功、旧设备重上架报「位置已占用告警」、占用设备下架后旧设备重上架成功、DB 还原。
 - 导出端点：`GET /api/devices/export` → 200，Content-Type 正确，导出含全部非删除设备。
 - 前端 `npm run build` 通过；服务进程已重启至 :8000 加载新代码。
+
+## [1.3.0] - 2026-08-12
+
+### 工程规范（版本一致性）
+- 新增 `scripts/check_version.py`：提交前校验 `backend/app/main.py`（`FastAPI(version=...)`）与 `web/package.json`（`"version"`）的版本号是否与 `CHANGELOG.md` 权威版本（取语义版本最大者）一致；不一致则报错退出（exit 1），禁止带漂移版本号提交。
+- `AGENTS.md` 新增「版本号一致性铁律」：明确权威来源、版本载体清单、提交前强制检查、同步规则与版本升级时机；第七章「提交阶段」纳入 `python scripts/check_version.py` 校验。
+- 项目版本号统一升级至 **1.3.0**（`CHANGELOG.md` / `main.py` / `package.json` 三处一致）。
+
+### 新增（机柜编辑）
+- 机柜卡片新增「✎」编辑按钮（`RackGrid.vue`），点击弹出编辑弹窗（`RoomDetailView.vue`），可修改机柜名称 / 总 U 数 / 电源 / 状态 / 位置备注 / 备注；机柜编号只读（后端 `RackUpdate` 不含 `rack_code`）。保存调用既有 `PUT /api/racks/{id}`（后端接口早已存在，本次纯前端补全）。
+- 测试手册补「机柜编辑」用例与「已解决」备注：原「机柜无法编辑、找不到改名菜单」已修复，TOTEN600_NR14 重名现已可在页面改名（名称允许重复、仅编号唯一，符合设计）。
